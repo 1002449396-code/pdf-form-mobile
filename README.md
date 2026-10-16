@@ -6,4 +6,5 @@
 ואז בתפריט ⋮ ← **התקנת אפליקציה**.
 
 רכיבי קוד פתוח: [PDF.js](https://github.com/mozilla/pdf.js) (Apache-2.0),
-[pdf-lib](https://github.com/Hopding/pdf-lib) (MIT), [fontkit](https://github.com/Hopding/fontkit) (MIT).
+[pdf-lib](https://github.com/Hopding/pdf-lib) (MIT), [fontkit](https://github.com/Hopding/fontkit) (MIT),
+[bidi-js](https://github.com/lojjic/bidi-js) (MIT), גופן [Rubik](https://fonts.google.com/specimen/Rubik) (OFL).

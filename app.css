@@ -109,6 +109,59 @@ body:not(.has-doc) .stage { background: var(--bg); }
 .tool:active { background: var(--accent-soft); color: var(--accent); }
 .tool:disabled { opacity: .35; }
 
+.tool.active { background: var(--accent-soft); color: var(--accent); }
+.tool.active span { font-weight: 600; }
+body.tool-armed .overlay { cursor: crosshair; }
+
+/* ---- what she adds (editor.js) ----
+   Font, line height, kerning and ligatures here must match writer.js exactly:
+   the PDF is drawn glyph by glyph with no kerning, at LINE_HEIGHT 1.25. */
+.item {
+  position: absolute; color: var(--ink); touch-action: none; user-select: none;
+  -webkit-user-select: none;
+}
+.item.text {
+  font-family: RubikFill, sans-serif; line-height: 1.25; white-space: pre;
+  font-kerning: none; font-variant-ligatures: none; letter-spacing: 0;
+  min-width: .6em; min-height: 1.25em; padding: 0; margin: 0; outline-offset: 2px;
+}
+.item.selected { outline: 1.5px dashed var(--accent); }
+.item.editing {
+  outline: 2px solid var(--accent); background: rgba(234, 240, 251, .55);
+  user-select: text; -webkit-user-select: text; caret-color: var(--accent);
+}
+.item.check svg { width: 100%; height: 100%; display: block; stroke: var(--ink); }
+
+.item-bar {
+  position: absolute; z-index: 5; display: flex; gap: 2px; padding: 3px;
+  background: var(--text); border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  direction: rtl; white-space: nowrap;
+}
+.item-bar button {
+  min-width: 40px; height: 36px; padding: 0 10px; border: 0; border-radius: 7px;
+  background: transparent; color: #fff; font-size: 14px;
+}
+.item-bar button:active { background: rgba(255,255,255,.15); }
+.item-bar button.danger { color: #FFB4A3; }
+
+/* ---- the form's own fields ---- */
+.field {
+  position: absolute; margin: 0; border: 0; border-radius: 2px;
+  background: rgba(34, 87, 199, .08); box-shadow: inset 0 -1px 0 rgba(34, 87, 199, .45);
+  font-family: RubikFill, sans-serif; color: #000; padding: 0 2px;
+  font-kerning: none; font-variant-ligatures: none;
+}
+.field:focus { outline: 2px solid var(--accent); background: rgba(34, 87, 199, .12); }
+.field:disabled { background: transparent; box-shadow: none; color: #000; opacity: 1; }
+textarea.field { resize: none; line-height: 1.25; padding-top: 2px; overflow: hidden; }
+.f-check, .f-radio { padding: 0; display: grid; place-items: center; }
+.f-check svg { width: 85%; height: 85%; stroke: #000; visibility: hidden; }
+.f-check.on svg { visibility: visible; }
+.f-radio span { width: 50%; height: 50%; border-radius: 50%; background: #000; visibility: hidden; }
+.f-radio { border-radius: 50%; }
+.f-radio.on span { visibility: visible; }
+select.field { appearance: none; -webkit-appearance: none; }
+
 /* ---- toast ---- */
 .toast {
   position: fixed; left: 50%; bottom: calc(var(--tool-h) + var(--safe-b) + 16px);

@@ -175,7 +175,11 @@ export class Viewer {
     const vp = p.page.getViewport({ scale });
     canvas.width = Math.floor(vp.width);
     canvas.height = Math.floor(vp.height);
-    const task = p.page.render({ canvasContext: canvas.getContext("2d"), viewport: vp });
+    // ENABLE_FORMS: form fields are NOT painted into the canvas - the editor
+    // puts live inputs over them, and a value painted underneath as well
+    // would show twice.
+    const task = p.page.render({ canvasContext: canvas.getContext("2d"), viewport: vp,
+                                 annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS });
     p.task = task;
     try {
       await task.promise;

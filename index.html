@@ -18,6 +18,12 @@
   </button>
   <div class="title" id="doc-title">עורך טפסים</div>
   <div class="page-count" id="page-count" hidden></div>
+  <button class="icon-btn" id="btn-zoom-out" type="button" aria-label="הקטנה" hidden>
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="m20 20-3.5-3.5"/></svg>
+  </button>
+  <button class="icon-btn" id="btn-zoom-in" type="button" aria-label="הגדלה" hidden>
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="m20 20-3.5-3.5"/></svg>
+  </button>
 </header>
 
 <main id="stage" class="stage">
@@ -34,17 +40,21 @@
 </main>
 
 <nav class="toolbar" id="toolbar" hidden>
-  <button class="tool" id="btn-zoom-out" type="button" aria-label="הקטנה">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="m20 20-3.5-3.5"/></svg>
-    <span>הקטנה</span>
+  <button class="tool" data-tool="text" type="button">
+    <svg viewBox="0 0 24 24"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M9 20h6"/></svg>
+    <span>טקסט</span>
   </button>
-  <button class="tool" id="btn-fit" type="button" aria-label="התאמה לרוחב">
-    <svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg>
-    <span>לרוחב</span>
+  <button class="tool" data-tool="check" type="button">
+    <svg viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 6.5"/></svg>
+    <span>וי</span>
   </button>
-  <button class="tool" id="btn-zoom-in" type="button" aria-label="הגדלה">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="m20 20-3.5-3.5"/></svg>
-    <span>הגדלה</span>
+  <button class="tool" data-tool="date" type="button">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 10h18"/></svg>
+    <span>תאריך</span>
+  </button>
+  <button class="tool" id="btn-undo" type="button" disabled>
+    <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+    <span>ביטול</span>
   </button>
 </nav>
 

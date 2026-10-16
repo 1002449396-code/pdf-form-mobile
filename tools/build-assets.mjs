@@ -17,7 +17,7 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 // be served from the cache (the worker itself, and the list it reads).
 const SKIP = new Set([".git", ".github", "tools", "tests", "node_modules", "sw.js",
                       "assets.js", "CLAUDE.md", "README.md", ".gitignore", ".gitattributes",
-                      ".nojekyll"]);
+                      ".nojekyll", "package.json"]);
 
 function walk(dir, out) {
   for (const name of readdirSync(dir).sort()) {
