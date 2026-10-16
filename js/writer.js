@@ -43,7 +43,7 @@ export async function exportPdf(original, edits, fontBytes) {
   const doc = await PDFDocument.load(original, { updateMetadata: false });
   doc.registerFontkit(fontkit);
   const font = await doc.embedFont(fontBytes, { subset: true });
-  drawItems(doc, font, edits.items, edits.pages);
+  await drawItems(doc, font, edits.items, edits.pages);
   if (edits.fields.length) fillFields(doc, font, edits.fields);
   return doc.save({ updateFieldAppearances: false });
 }
@@ -73,12 +73,13 @@ export async function exportImagePdf(images, items, fontBytes) {
     doc.addPage([w, h]).drawImage(img, { x: 0, y: 0, width: w, height: h });
     pages.push({ view: [0, 0, w, h], rotate: 0 });
   }
-  drawItems(doc, font, items, pages);
+  await drawItems(doc, font, items, pages);
   return doc.save();
 }
 
-function drawItems(doc, font, items, geometry) {
+async function drawItems(doc, font, items, geometry) {
   const pages = doc.getPages();
+  const images = new Map();   // one embedded copy per picture, however often placed
   for (const item of items) {
     const page = pages[item.page];
     const geo = geometry[item.page];
@@ -86,7 +87,10 @@ function drawItems(doc, font, items, geometry) {
     const m = viewTransform(geo.view, geo.rotate);
     if (item.kind === "text") drawTextItem(page, font, m, item);
     else if (item.kind === "check") drawCheckItem(page, m, item);
-    else if (item.kind === "sign") drawSignItem(page, m, item);
+    else if (item.kind === "sign" && item.sig?.type === "image") {
+      if (!images.has(item.sig.png)) images.set(item.sig.png, await doc.embedPng(item.sig.png));
+      drawImageSign(page, m, item, images.get(item.sig.png));
+    } else if (item.kind === "sign") drawSignItem(page, m, item);
   }
 }
 
@@ -117,14 +121,26 @@ function drawTextItem(page, font, m, item) {
 
   const ops = [pushGraphicsState(), beginText(), setFillingColor(INK_RGB),
                setFontAndSize(key, item.size)];
+  const at = (x, y, visual) => {
+    const [px, py] = toPdf(m, x, y);
+    ops.push(setTextMatrix(cos, sin, -sin, cos, px, py), showText(encodeVisual(font, visual)));
+  };
   text.split("\n").forEach((line, i) => {
     if (!line) return;
     const visual = visualLine(line, rtl);
-    const w = widthOf(font, visual, item.size);
-    const left = rtl ? item.x - w : item.x;
     const baseline = item.y + (i * LINE_HEIGHT + BASELINE) * item.size;
-    const [px, py] = toPdf(m, left, baseline);
-    ops.push(setTextMatrix(cos, sin, -sin, cos, px, py), showText(encodeVisual(font, visual)));
+    if (item.cell) {
+      // "Boxes": every character centred in a cell of its own, so a phone
+      // number lands one digit per printed box whatever each digit's width.
+      const chars = [...visual];
+      const left = rtl ? item.x - chars.length * item.cell : item.x;
+      chars.forEach((ch, k) => {
+        at(left + k * item.cell + (item.cell - widthOf(font, ch, item.size)) / 2, baseline, ch);
+      });
+      return;
+    }
+    const w = widthOf(font, visual, item.size);
+    at(rtl ? item.x - w : item.x, baseline, visual);
   });
   ops.push(endText(), popGraphicsState());
   page.pushOperators(...ops);
@@ -139,6 +155,15 @@ function drawCheckItem(page, m, item) {
     x: px, y: py, scale: item.size / 24, rotate: degrees(screenAngle(m)),
     borderColor: INK_RGB, borderWidth: CHECK_STROKE, borderLineCap: LineCapStyle.Round,
   });
+}
+
+function drawImageSign(page, m, item, image) {
+  // A signature from a photo or file: a PNG with its paper made transparent.
+  // drawImage anchors the picture's BOTTOM-left corner and rotates around it.
+  const w = item.w, h = w * item.sig.h / item.sig.w;
+  const [px, py] = toPdf(m, item.x - w / 2, item.y + h / 2);
+  page.node.normalize();
+  page.drawImage(image, { x: px, y: py, width: w, height: h, rotate: degrees(screenAngle(m)) });
 }
 
 function drawSignItem(page, m, item) {

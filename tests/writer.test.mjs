@@ -321,3 +321,64 @@ test("the picture fallback keeps the page size and writes her text where it was"
   const [x, y] = vp.convertToViewportPoint(r.transform[4], r.transform[5]);
   assert.ok(Math.abs(x + r.width - 500) < 0.05 && Math.abs(y - (100 + EXPECTED_BASELINE * 14)) < 0.05);
 });
+
+// ------------------------------------------------------------------ boxes
+
+/** Every character the page content draws, with the x of its text matrix. */
+async function glyphsAt(doc, n = 1) {
+  const ops = await (await doc.getPage(n)).getOperatorList();
+  const out = [];
+  let x = 0;
+  ops.fnArray.forEach((fn, i) => {
+    const a = ops.argsArray[i];
+    if (fn === pdfjs.OPS.setTextMatrix) x = a[4];
+    if (fn === pdfjs.OPS.showText) {
+      for (const g of a[0]) if (typeof g !== "number" && g?.unicode) out.push({ ch: g.unicode, x, w: g.width });
+    }
+  });
+  return out;
+}
+
+test("boxes: each digit is CENTRED in its own cell, whatever its width", async () => {
+  // '1' is two thirds the width of '0' in this font - proportional spacing
+  // would drift off the printed boxes by the third digit.
+  const cell = 20, size = 12, x0 = 100;
+  const doc = await fill(await blank(), [{ page: 0, kind: "text", x: x0, y: 100, size, cell, text: "1010" }]);
+  const g = await glyphsAt(doc);
+  assert.equal(g.map((c) => c.ch).join(""), "1010");
+  g.forEach((c, k) => {
+    const centre = c.x + (c.w * size) / 1000 / 2;
+    assert.ok(Math.abs(centre - (x0 + k * cell + cell / 2)) < 0.01, `digit ${k} centred at ${centre}`);
+  });
+});
+
+test("boxes with Hebrew fill from the RIGHT: the first letter takes the rightmost cell", async () => {
+  const cell = 20, x0 = 400;
+  const doc = await fill(await blank(), [{ page: 0, kind: "text", x: x0, y: 100, size: 12, cell, text: "אבג" }]);
+  const g = await glyphsAt(doc);
+  assert.equal(g.map((c) => c.ch).join(""), "גבא");          // drawn left to right
+  const centre = (c) => c.x + (c.w * 12) / 1000 / 2;
+  assert.ok(Math.abs(centre(g[2]) - (x0 - cell / 2)) < 0.01, "א in the rightmost cell");
+  assert.ok(Math.abs(centre(g[0]) - (x0 - 3 * cell + cell / 2)) < 0.01);
+});
+
+// ------------------------------------------------------------------ image signature
+
+test("a signature from a picture is placed centred, at her width, keeping its shape", async () => {
+  const png = "data:image/png;base64," + readFileSync(ROOT + "tests/fixtures/sign.png").toString("base64");
+  const sig = { type: "image", w: 200, h: 50, png };
+  const doc = await fill(await blank(), [{ page: 0, kind: "sign", x: 300, y: 200, w: 120, sig }]);
+  const page = await doc.getPage(1);
+  const ops = await page.getOperatorList();
+  assert.ok(ops.fnArray.includes(pdfjs.OPS.paintImageXObject), "the picture is drawn");
+  const all = ops.fnArray.map((fn, i) => fn === pdfjs.OPS.transform ? ops.argsArray[i] : null).filter(Boolean);
+  const near = (a, b) => Math.abs(a - b) < 1e-3;
+  // drawImage = move to the corner, then scale the unit square to the size.
+  const t = all.find((m) => near(m[0], 120));
+  assert.ok(t, "scaled to 120 wide");
+  assert.ok(near(t[3], 30), "and 30 high - its own proportions");
+  // the picture's bottom-left corner, on screen: (300-60, 200+15)
+  const [ex, ey] = page.getViewport({ scale: 1 }).convertToPdfPoint(240, 215);
+  assert.ok(all.some((m) => near(m[0], 1) && near(m[3], 1) && near(m[4], ex) && near(m[5], ey)),
+            `corner ${ex},${ey}: ${JSON.stringify(all)}`);
+});

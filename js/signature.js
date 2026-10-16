@@ -21,18 +21,22 @@ async function saveSignatures(list) {
 
 /** SVG markup of a signature, for previews and for the page. */
 export function signatureSvg(sig) {
+  if (sig.type === "image") {
+    return `<svg viewBox="0 0 ${sig.w} ${sig.h}" preserveAspectRatio="xMidYMid meet">` +
+      `<image href="${sig.png}" width="${sig.w}" height="${sig.h}"/></svg>`;
+  }
   return `<svg viewBox="0 0 ${sig.w} ${sig.h}" preserveAspectRatio="xMidYMid meet">` +
     `<path d="${strokesPath(sig.strokes)}" fill="none" stroke="${INK.css}" stroke-width="${sig.width}" ` +
     `stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 /**
- * Asks which signature to use. Resolves to a signature, or null.
- * With none saved yet, goes straight to the pad.
+ * Asks which signature to use. Resolves to a signature, or null. With none
+ * saved yet it still opens here: there are two ways to make one (draw it, or
+ * take it from a picture) and she should see both.
  */
 export async function pickSignature() {
   const list = await loadSignatures();
-  if (!list.length) return drawNew(list);
   return new Promise((resolve) => {
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
@@ -58,21 +62,34 @@ export async function pickSignature() {
           if (!confirm("למחוק את החתימה הזו מהטלפון? חתימות שכבר הונחו במסמך לא ייפגעו.")) return;
           list.splice(list.indexOf(entry), 1);
           await saveSignatures(list);
-          // The last one gone: straight to the pad, which REPLACES this sheet
-          // (closing first would race the back button - see ui.sheet).
-          if (!list.length) { finish(await drawNew(list)); return; }
           render();
         });
         card.append(use, del);
         body.append(card);
       }
       if (list.length < MAX_SAVED) {
-        const add = document.createElement("button");
-        add.type = "button";
-        add.className = "sig-card sig-add";
-        add.innerHTML = `<svg viewBox="0 0 24 24">${ICONS.plus}</svg><span>חתימה חדשה</span>`;
-        add.addEventListener("click", async () => finish(await drawNew(list)));
-        body.append(add);
+        const add = (icon, label, make) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "sig-card sig-add";
+          b.innerHTML = `<svg viewBox="0 0 24 24">${icon}</svg><span></span>`;
+          b.querySelector("span").textContent = label;
+          b.addEventListener("click", async () => {
+            const sig = await make();
+            // Backing out of the PHOTO PICKER leaves this list on screen (no
+            // sheet replaced it): stay usable rather than answering for it.
+            if (!sig && body.isConnected) return;
+            finish(await keep(list, sig));
+          });
+          body.append(b);
+        };
+        add(ICONS.plus, "ציור חתימה", openPad);
+        add(ICONS.image, "חתימה מתמונה", fromPicture);
+      } else {
+        const p = document.createElement("p");
+        p.className = "sig-full";
+        p.textContent = `שמורות ${MAX_SAVED} חתימות. כדי להוסיף חדשה, מחקו אחת קודם.`;
+        body.append(p);
       }
     };
     render();
@@ -80,9 +97,8 @@ export async function pickSignature() {
   });
 }
 
-/** Opens the pad; a saved drawing is added to `list` and returned. */
-async function drawNew(list) {
-  const sig = await openPad();
+/** A new signature (drawn or from a picture) is added to `list` and returned. */
+async function keep(list, sig) {
   if (!sig) return null;
   list.unshift({ id: Date.now(), sig });
   list.length = Math.min(list.length, MAX_SAVED);
@@ -90,6 +106,150 @@ async function drawNew(list) {
     alert("לא ניתן לשמור את החתימה בטלפון (ייתכן שהדפדפן במצב פרטי). אפשר להשתמש בה עכשיו, אבל היא לא תישמר לפעם הבאה.");
   }
   return sig;
+}
+
+// ------------------------------------------------------------------ from a picture
+//
+// A photo of a signature on paper, or a scanned/PNG file. The paper goes
+// transparent and the ink stays, so it sits on a form like ink, not like a
+// white sticker. A slider decides how much counts as "paper" - a photo taken
+// in a dim room has grey paper, and only she can tell where the ink starts.
+
+const PICTURE_WORK = 1400;   // longest side processed (a 12MP photo is overkill)
+const PICTURE_KEEP = 900;    // width kept: sharp on paper, ~100KB in storage
+
+function fromPicture() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";     // Android offers the camera here as well
+    input.addEventListener("cancel", () => resolve(null));
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) { resolve(null); return; }
+      let bmp;
+      try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+      catch { alert("לא ניתן לפתוח את התמונה הזו. נסו תמונה אחרת (JPG או PNG)."); resolve(null); return; }
+      resolve(await reviewPicture(bmp));
+    });
+    input.click();
+  });
+}
+
+function reviewPicture(bmp) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+
+    // Work copy, scaled down once.
+    const k = Math.min(1, PICTURE_WORK / Math.max(bmp.width, bmp.height));
+    const W = Math.max(1, Math.round(bmp.width * k)), H = Math.max(1, Math.round(bmp.height * k));
+    const work = document.createElement("canvas");
+    work.width = W; work.height = H;
+    const wctx = work.getContext("2d", { willReadFrequently: true });
+    wctx.drawImage(bmp, 0, 0, W, H);
+    bmp.close?.();
+    const src = wctx.getImageData(0, 0, W, H);
+    const lum = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      const p = i * 4;
+      lum[i] = 0.299 * src.data[p] + 0.587 * src.data[p + 1] + 0.114 * src.data[p + 2];
+    }
+    const paper = percentile(lum, 0.9);   // most of a signature photo is paper
+
+    const body = document.createElement("div");
+    body.className = "pad";
+    body.innerHTML = `
+      <div class="pic-area"><canvas></canvas><p class="pic-empty" hidden>לא נמצאה חתימה בתמונה. הקטינו את ניקוי הרקע בסרגל.</p></div>
+      <label class="pic-slider"><span>ניקוי רקע</span>
+        <input type="range" min="0" max="100" value="40" step="1"></label>
+      <div class="pad-actions">
+        <button type="button" data-act="cancel">ביטול</button>
+        <button type="button" data-act="save" class="primary">שמירה</button>
+      </div>`;
+    const shown = body.querySelector("canvas");
+    const slider = body.querySelector("input");
+    const saveBtn = body.querySelector('[data-act="save"]');
+    const empty = body.querySelector(".pic-empty");
+    let result = null;
+
+    const run = () => {
+      result = removePaper(src, lum, paper, Number(slider.value));
+      const ok = !!result;
+      saveBtn.disabled = !ok;
+      empty.hidden = ok;
+      shown.hidden = !ok;
+      if (ok) {
+        shown.width = result.width; shown.height = result.height;
+        shown.getContext("2d").drawImage(result, 0, 0);
+      }
+    };
+    let pending = false;
+    slider.addEventListener("input", () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => { pending = false; run(); });
+    });
+    run();
+
+    const close = sheet({ title: "חתימה מתמונה", body, full: true, onClose: () => finish(null) });
+    body.querySelector(".pad-actions").addEventListener("click", (e) => {
+      const act = e.target.closest("button")?.dataset.act;
+      if (act === "cancel") close();
+      else if (act === "save" && result) {
+        const k2 = Math.min(1, PICTURE_KEEP / result.width);
+        const out = document.createElement("canvas");
+        out.width = Math.max(1, Math.round(result.width * k2));
+        out.height = Math.max(1, Math.round(result.height * k2));
+        out.getContext("2d").drawImage(result, 0, 0, out.width, out.height);
+        finish({ type: "image", w: out.width, h: out.height, png: out.toDataURL("image/png") });
+        close(false);
+      }
+    });
+  });
+}
+
+/** The ink, on transparency, cropped to itself - or null if nothing is left.
+ *  level 0..100: how much of the lighter tones counts as paper. */
+export function removePaper(src, lum, paper, level) {
+  const { width: W, height: H } = src;
+  const cut = paper * (0.95 - 0.004 * level);      // lighter than this = paper
+  const soft = Math.max(8, cut * 0.25);            // a soft edge, like real ink
+  const out = new ImageData(W, H);
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x, p = i * 4;
+      const a = Math.min(1, Math.max(0, (cut - lum[i]) / soft));
+      if (a <= 0) continue;
+      // Slightly darker than the photo: a phone camera greys out a pen.
+      out.data[p] = src.data[p] * 0.8;
+      out.data[p + 1] = src.data[p + 1] * 0.8;
+      out.data[p + 2] = src.data[p + 2] * 0.8;
+      out.data[p + 3] = Math.round(a * 255);
+      if (a > 0.2) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    }
+  }
+  if (x1 < 0) return null;
+  const pad = 4;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+  x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+  const full = document.createElement("canvas");
+  full.width = W; full.height = H;
+  full.getContext("2d").putImageData(out, 0, 0);
+  const crop = document.createElement("canvas");
+  crop.width = x1 - x0 + 1; crop.height = y1 - y0 + 1;
+  crop.getContext("2d").drawImage(full, -x0, -y0);
+  return crop;
+}
+
+function percentile(values, q) {
+  // A histogram, not a sort: two million pixels, 256 bins.
+  const bins = new Uint32Array(256);
+  for (const v of values) bins[Math.min(255, v | 0)]++;
+  let need = values.length * q;
+  for (let b = 0; b < 256; b++) { need -= bins[b]; if (need <= 0) return b; }
+  return 255;
 }
 
 // ------------------------------------------------------------------ the pad

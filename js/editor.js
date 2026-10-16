@@ -11,6 +11,7 @@
 
 import {
   FONT_FAMILY, FONT_URL, LINE_HEIGHT, CHECK_PATH, CHECK_STROKE, SIGN_WIDTH, isRtl, todayText,
+  visualLine,
 } from "./layout.js";
 import { signatureSvg } from "./signature.js";
 
@@ -255,7 +256,38 @@ export class Editor {
     // Anchored where she tapped: Hebrew grows leftwards from it, English rightwards.
     if (rtl) { el.style.right = pageW - item.x * s + "px"; el.style.left = "auto"; }
     else { el.style.left = item.x * s + "px"; el.style.right = "auto"; }
-    if (item.id !== this.editing && el.textContent !== item.text) el.textContent = item.text;
+    el.classList.toggle("cells", !!item.cell);
+    if (item.id === this.editing) {
+      // Typing in box mode: plain text spread out roughly to the cells (a
+      // contenteditable full of cells is no place to type). Equal-width
+      // digits keep it close; the exact cells come back when she is done.
+      el.style.letterSpacing = item.cell ? `${(item.cell - item.size * 0.6) * s}px` : "";
+      return;
+    }
+    el.style.letterSpacing = "";
+    if (item.cell) {
+      // Exactly what writer.js draws: the line in visual order, one character
+      // centred per cell, laid out left to right.
+      el.dir = "ltr";
+      const key = `${item.text}|${item.cell}`;
+      if (el.dataset.cells !== key) {
+        el.replaceChildren();
+        item.text.split("\n").forEach((line, i) => {
+          if (i) el.append(document.createElement("br"));
+          for (const ch of visualLine(line, rtl)) {
+            const c = document.createElement("span");
+            c.className = "cell";
+            c.textContent = ch;
+            el.append(c);
+          }
+        });
+        el.dataset.cells = key;
+      }
+      el.style.setProperty("--cell", item.cell * s + "px");
+      return;
+    }
+    delete el.dataset.cells;
+    if (el.textContent !== item.text || el.querySelector(".cell")) el.textContent = item.text;
   }
 
   _itemElement(item) {
@@ -344,6 +376,7 @@ export class Editor {
     this.selected = id;
     this.editing = id;
     this._editStart = { snap: isNew ? null : this._snapshot(), text: item.text };
+    if (el.dataset.cells != null) { el.textContent = item.text; delete el.dataset.cells; }  // cells -> plain
     el.contentEditable = "plaintext-only";
     el.classList.add("editing");
     el.oninput = () => this._placeItem(el, item, this.viewer.scaleOf(item.page));
@@ -387,17 +420,45 @@ export class Editor {
     bar.className = "item-bar";
     bar.hidden = true;
     bar.innerHTML = `
-      <button type="button" data-act="edit">עריכה</button>
-      <button type="button" data-act="smaller" aria-label="הקטנה">A−</button>
-      <button type="button" data-act="bigger" aria-label="הגדלה">A+</button>
-      <button type="button" data-act="delete" class="danger">מחיקה</button>`;
-    // pointerdown + preventDefault keeps the keyboard up while typing.
-    bar.addEventListener("pointerdown", (e) => e.preventDefault());
+      <div class="bar-row">
+        <button type="button" data-act="edit">עריכה</button>
+        <button type="button" data-act="smaller" aria-label="הקטנה">A−</button>
+        <button type="button" data-act="bigger" aria-label="הגדלה">A+</button>
+        <button type="button" data-act="cells" aria-label="תיבות - כל תו בתיבה משלו">תיבות</button>
+        <button type="button" data-act="delete" class="danger">מחיקה</button>
+      </div>
+      <label class="bar-cells" hidden><span>רוחב תיבה</span>
+        <input type="range" step="0.1"></label>`;
+    // pointerdown + preventDefault keeps the keyboard up while typing - but
+    // not on the slider, which needs the touch to move.
+    bar.addEventListener("pointerdown", (e) => { if (e.target.type !== "range") e.preventDefault(); });
+
+    // The cell-width slider: one undo step per drag, live on the page.
+    const range = bar.querySelector('input[type="range"]');
+    let dragSnap = null;
+    range.addEventListener("pointerdown", () => { dragSnap = this._snapshot(); });
+    range.addEventListener("input", () => {
+      const item = this._item(this.selected);
+      if (!item?.cell) return;
+      if (dragSnap) { this._checkpoint(dragSnap); dragSnap = null; }
+      item.cell = Number(range.value);
+      this.layout();
+    });
+    range.addEventListener("change", () => { dragSnap = null; });
+
     bar.addEventListener("click", (e) => {
       const act = e.target.closest("button")?.dataset.act;
       const item = this._item(this.selected);
       if (!act || !item) return;
       if (act === "edit") { this._edit(item.id, false); return; }
+      if (act === "cells") {
+        this._checkpoint();
+        // On: start near the letters' own width, so nothing jumps; then she
+        // widens it until the characters sit in the form's boxes.
+        item.cell = item.cell ? null : Math.round(item.size * 0.8 * 10) / 10;
+        this.layout();
+        return;
+      }
       if (act === "delete") {
         if (this.editing === item.id) this.editing = null;
         this._checkpoint();
@@ -444,6 +505,17 @@ export class Editor {
     const isText = item.kind === "text";
     bar.querySelector('[data-act="smaller"]').textContent = isText ? "A−" : "−";
     bar.querySelector('[data-act="bigger"]').textContent = isText ? "A+" : "+";
+    const cellsBtn = bar.querySelector('[data-act="cells"]');
+    cellsBtn.hidden = !isText;
+    cellsBtn.classList.toggle("on", !!item.cell);
+    const cells = bar.querySelector(".bar-cells");
+    cells.hidden = !(isText && item.cell);
+    if (!cells.hidden) {
+      const r = cells.querySelector("input");
+      r.min = String(Math.round(item.size * 0.4 * 10) / 10);
+      r.max = String(Math.round(item.size * 4 * 10) / 10);
+      if (document.activeElement !== r) r.value = String(item.cell);
+    }
     bar.hidden = false;
     // Above the item, kept inside the page; below it when there is no room.
     const pw = p.overlay.clientWidth;
