@@ -13,16 +13,12 @@
 <body>
 
 <header class="topbar">
-  <button class="icon-btn" id="btn-open" type="button" aria-label="פתיחת קובץ">
-    <svg viewBox="0 0 24 24"><path d="M4 20h16a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-8l-2-3H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1z"/></svg>
-  </button>
-  <div class="title" id="doc-title">עורך טפסים</div>
-  <div class="page-count" id="page-count" hidden></div>
-  <button class="icon-btn" id="btn-zoom-out" type="button" aria-label="הקטנה" hidden>
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="m20 20-3.5-3.5"/></svg>
-  </button>
-  <button class="icon-btn" id="btn-zoom-in" type="button" aria-label="הגדלה" hidden>
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="m20 20-3.5-3.5"/></svg>
+  <div class="title-wrap">
+    <div class="title" id="doc-title">עורך טפסים</div>
+    <div class="page-count" id="page-count" hidden></div>
+  </div>
+  <button class="icon-btn" id="btn-menu" type="button" aria-label="תפריט">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
   </button>
 </header>
 
@@ -51,6 +47,10 @@
   <button class="tool" data-tool="date" type="button">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 10h18"/></svg>
     <span>תאריך</span>
+  </button>
+  <button class="tool" data-tool="sign" type="button">
+    <svg viewBox="0 0 24 24"><path d="M3 17c3-1 4-9 7-9 2 0 0 7 2 7s2-3 4-3 2 2 5 2"/><path d="M3 21h18"/></svg>
+    <span>חתימה</span>
   </button>
   <button class="tool" id="btn-undo" type="button" disabled>
     <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>

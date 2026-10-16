@@ -12,7 +12,7 @@
 
 import {
   PDFDocument, PDFName, PDFHexString, PDFBool, PDFTextField, PDFCheckBox,
-  PDFRadioGroup, PDFDropdown, LineCapStyle, rgb, degrees,
+  PDFRadioGroup, PDFDropdown, LineCapStyle, LineJoinStyle, setLineJoin, rgb, degrees,
   beginMarkedContent, endMarkedContent, pushGraphicsState, popGraphicsState,
   rectangle, clip, endPath, beginText, endText, setFontAndSize, showText,
   setTextMatrix, setFillingColor,
@@ -20,7 +20,7 @@ import {
 import fontkit from "./fontkit.js";
 import {
   LINE_HEIGHT, BASELINE, FONT_ASCENT, FONT_DESCENT, INK, CHECK_PATH, CHECK_STROKE,
-  isRtl, visualLine, viewTransform, toPdf, screenAngle,
+  isRtl, visualLine, viewTransform, toPdf, screenAngle, strokesPath,
 } from "./layout.js";
 
 const INK_RGB = rgb(INK.r, INK.g, INK.b);
@@ -30,9 +30,11 @@ const FIELD_PAD = 2;            // points of air inside a field's border
 /**
  * @param {Uint8Array} original  the file as opened
  * @param {object} edits
- *   items:  [{page, kind:"text", x, y, size, text} | {page, kind:"check", x, y, size}]
+ *   items:  [{page, kind:"text", x, y, size, text} | {page, kind:"check", x, y, size}
+ *            | {page, kind:"sign", x, y, w, sig}]
  *           in page units (see layout.js); text x is the ANCHOR - the right
- *           edge of a right-to-left item, the left edge otherwise.
+ *           edge of a right-to-left item, the left edge otherwise. A ✓ and a
+ *           signature are placed by their CENTRE.
  *   fields: [{name, type, value}] - only fields she changed.
  *   pages:  [{view, rotate}] per page, from pdf.js
  * @param {Uint8Array} fontBytes  RubikFill-Regular.ttf
@@ -50,6 +52,7 @@ export async function exportPdf(original, edits, fontBytes) {
     const m = viewTransform(geo.view, geo.rotate);
     if (item.kind === "text") drawTextItem(page, font, m, item);
     else if (item.kind === "check") drawCheckItem(page, m, item);
+    else if (item.kind === "sign") drawSignItem(page, m, item);
   }
 
   if (edits.fields.length) fillFields(doc, font, edits.fields);
@@ -106,6 +109,25 @@ function drawCheckItem(page, m, item) {
     x: px, y: py, scale: item.size / 24, rotate: degrees(screenAngle(m)),
     borderColor: INK_RGB, borderWidth: CHECK_STROKE, borderLineCap: LineCapStyle.Round,
   });
+}
+
+function drawSignItem(page, m, item) {
+  // item.x/y is the CENTRE, item.w the width in page units; the strokes live
+  // in the signature's own units (sig.w x sig.h).
+  const sig = item.sig;
+  if (!sig?.strokes?.length) return;
+  const scale = item.w / sig.w;
+  const h = sig.h * scale;
+  const [px, py] = toPdf(m, item.x - item.w / 2, item.y - h / 2);
+  page.node.normalize();
+  // Round joins as well as caps - a pen has no corners. drawSvgPath has no
+  // join option, so it is set in a graphics state of our own around it.
+  page.pushOperators(pushGraphicsState(), setLineJoin(LineJoinStyle.Round));
+  page.drawSvgPath(strokesPath(sig.strokes), {
+    x: px, y: py, scale, rotate: degrees(screenAngle(m)),
+    borderColor: INK_RGB, borderWidth: sig.width, borderLineCap: LineCapStyle.Round,
+  });
+  page.pushOperators(popGraphicsState());
 }
 
 // ------------------------------------------------------------------ form

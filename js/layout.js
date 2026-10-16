@@ -93,6 +93,34 @@ export function screenAngle(m) {
 export const CHECK_PATH = "M4.5 12.5 L9.5 17.5 L19.5 6.5";
 export const CHECK_STROKE = 3;   // in the 24-unit box
 
+// ------------------------------------------------------------------ signature
+//
+// A signature is VECTOR strokes, not a picture: sharp at any zoom and in
+// print, and a few KB. {w, h, width, strokes: [[x0, y0, x1, y1, ...], ...]}
+// in the pad's own units, with (0,0) the top-left of the signature's box.
+
+/** Width, in points, a signature is placed at before she resizes it. */
+export const SIGN_WIDTH = 110;
+
+/** One SVG path for all strokes, smoothed: a quadratic curve through the
+ *  midpoints between samples. The screen and the PDF both draw THIS string. */
+export function strokesPath(strokes) {
+  const f = (n) => Math.round(n * 10) / 10;
+  let d = "";
+  for (const s of strokes) {
+    const n = s.length / 2;
+    if (n === 0) continue;
+    const x = (i) => s[2 * i], y = (i) => s[2 * i + 1];
+    d += `M${f(x(0))} ${f(y(0))}`;
+    if (n === 1) { d += `L${f(x(0) + 0.1)} ${f(y(0))}`; continue; }   // a dot
+    for (let i = 1; i < n - 1; i++) {
+      d += `Q${f(x(i))} ${f(y(i))} ${f((x(i) + x(i + 1)) / 2)} ${f((y(i) + y(i + 1)) / 2)}`;
+    }
+    d += `L${f(x(n - 1))} ${f(y(n - 1))}`;
+  }
+  return d;
+}
+
 /** Today as the school writes it: 16/10/2026. */
 export function todayText(now = new Date()) {
   const dd = String(now.getDate()).padStart(2, "0");

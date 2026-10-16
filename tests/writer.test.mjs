@@ -177,6 +177,32 @@ test("a ✓ lands centred on its point, and adds no text", async () => {
   assert.ok(ops.fnArray.includes(pdfjs.OPS.constructPath) || ops.fnArray.includes(pdfjs.OPS.stroke));
 });
 
+// ------------------------------------------------------------------ signature
+
+test("strokes become one smoothed path, and a single touch is a dot", () => {
+  assert.equal(L.strokesPath([[0, 0, 10, 0, 20, 10]]), "M0 0Q10 0 15 5L20 10");
+  assert.equal(L.strokesPath([[5, 5]]), "M5 5L5.1 5");
+  assert.equal(L.strokesPath([[0, 0, 4, 4], [9, 9]]), "M0 0L4 4M9 9L9.1 9");
+});
+
+test("a signature is drawn centred on its point, at the width she chose", async () => {
+  const sig = { w: 200, h: 50, width: 3, strokes: [[0, 25, 100, 0, 200, 25]] };
+  const item = { page: 0, kind: "sign", x: 300, y: 200, w: 150, sig };
+  const doc = await fill(await blank(), [item]);
+  const ops = await (await doc.getPage(1)).getOperatorList();
+  const transforms = ops.fnArray.map((fn, i) => fn === pdfjs.OPS.transform ? ops.argsArray[i] : null)
+    .filter(Boolean);
+  // drawSvgPath places the box's top-left corner, then scales (y flipped).
+  const scale = 150 / 200, h = 50 * scale;
+  const page = await doc.getPage(1);
+  const [ex, ey] = page.getViewport({ scale: 1 }).convertToPdfPoint(300 - 75, 200 - h / 2);
+  const near = (a, b) => Math.abs(a - b) < 1e-3;
+  assert.ok(transforms.some((t) => near(t[0], 1) && near(t[3], 1) && near(t[4], ex) && near(t[5], ey)),
+            `corner at ${ex},${ey}: ${JSON.stringify(transforms)}`);
+  assert.ok(transforms.some((t) => near(t[0], scale) && near(t[3], -scale)), "scaled to her width");
+  assert.equal((await runs(doc)).length, 0, "a signature adds no text");
+});
+
 // ------------------------------------------------------------------ form fields
 
 test("wrapping happens in LOGICAL order, so a sentence starts on the first line", async () => {

@@ -10,12 +10,14 @@
 // and line height the writer uses, so what she types is what gets saved.
 
 import {
-  FONT_FAMILY, FONT_URL, LINE_HEIGHT, CHECK_PATH, CHECK_STROKE, isRtl, todayText,
+  FONT_FAMILY, FONT_URL, LINE_HEIGHT, CHECK_PATH, CHECK_STROKE, SIGN_WIDTH, isRtl, todayText,
 } from "./layout.js";
+import { signatureSvg } from "./signature.js";
 
 const TEXT_SIZE = 12;          // points, a new text item
 const CHECK_SIZE = 14;         // points, side of a new ✓
 const MIN_SIZE = 6, MAX_SIZE = 48;
+const MIN_SIGN = 30, MAX_SIGN = 400;   // points, a signature's width
 const SIZE_STEP = 1.15;
 const DRAG_SLOP = 6;           // CSS px a finger may wander before a tap becomes a drag
 
@@ -89,10 +91,39 @@ export class Editor {
     };
   }
 
+  // ---------------------------------------------------------------- draft
+  // What app.js keeps in the phone's storage, so a reload or a closed app
+  // brings her work back. Includes the text she is typing RIGHT NOW: an app
+  // swiped away mid-word must not lose the word.
+
+  draft() {
+    const items = this.items.map((i) => ({ ...i }));
+    if (this.editing != null) {
+      const el = document.querySelector(`.item[data-id="${this.editing}"]`);
+      const it = items.find((i) => i.id === this.editing);
+      if (el && it) it.text = el.innerText.replace(/\s+$/, "");
+    }
+    return { items: items.filter((i) => i.kind !== "text" || i.text), values: { ...this.values } };
+  }
+
+  /** After attach(): put a saved draft back. Fields are matched by name, so a
+   *  value for a field this file does not have is simply dropped. */
+  restore(draft) {
+    if (!draft) return;
+    this.items = (draft.items || []).filter((i) => i.page < this.viewer.pages.length);
+    for (const i of this.items) nextId = Math.max(nextId, i.id + 1);
+    for (const [k, v] of Object.entries(draft.values || {})) if (k in this.values) this.values[k] = v;
+    this._syncFieldElements();
+    this.layout();
+  }
+
   // ---------------------------------------------------------------- tools
 
-  setTool(tool) {
-    this.tool = this.tool === tool ? null : tool;
+  /** `sig` goes with the "sign" tool: the signature the next tap places. */
+  setTool(tool, sig = null) {
+    this.tool = this.tool === tool && !sig ? null : tool;
+    this.pendingSig = this.tool === "sign" ? sig : null;
+    if (this.tool === "sign" && !this.pendingSig) this.tool = null;
     if (this.tool) this._select(null);
     document.body.classList.toggle("tool-armed", !!this.tool);
     this.ui.onToolChange(this.tool);
@@ -107,6 +138,13 @@ export class Editor {
       this.items.push({ id: nextId++, page: index, kind: "check", x, y, size: CHECK_SIZE });
       this.layout();
       return;     // ✓ stays armed: a form usually wants several
+    }
+    if (tool === "sign") {
+      const item = { id: nextId++, page: index, kind: "sign", x, y, w: SIGN_WIDTH, sig: this.pendingSig };
+      this.items.push(item);
+      this.setTool(null);
+      this._select(item.id);
+      return;
     }
     const text = tool === "date" ? todayText() : "";
     const size = TEXT_SIZE;
@@ -167,6 +205,12 @@ export class Editor {
 
   _placeItem(el, item, s) {
     el.classList.toggle("selected", item.id === this.selected);
+    if (item.kind === "sign") {
+      const w = item.w * s, h = w * item.sig.h / item.sig.w;
+      Object.assign(el.style, { left: item.x * s - w / 2 + "px", top: item.y * s - h / 2 + "px",
+                                width: w + "px", height: h + "px" });
+      return;
+    }
     if (item.kind === "check") {
       const side = item.size * s;
       Object.assign(el.style, { left: item.x * s - side / 2 + "px", top: item.y * s - side / 2 + "px",
@@ -191,6 +235,8 @@ export class Editor {
     el.dataset.id = String(item.id);
     if (item.kind === "check") {
       el.innerHTML = `<svg viewBox="0 0 24 24"><path d="${CHECK_PATH}" stroke-width="${CHECK_STROKE}"/></svg>`;
+    } else if (item.kind === "sign") {
+      el.innerHTML = signatureSvg(item.sig);
     } else {
       el.textContent = item.text;
     }
@@ -219,7 +265,7 @@ export class Editor {
       const id = Number(el.dataset.id);
       if (id === this.editing) return;          // let the caret move
       e.preventDefault();
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
       const item = this._item(id);
       start = { x: e.clientX, y: e.clientY, ix: item.x, iy: item.y, snap: this._snapshot(), moved: false };
     });
@@ -332,6 +378,14 @@ export class Editor {
         return;
       }
       const f = act === "bigger" ? SIZE_STEP : 1 / SIZE_STEP;
+      if (item.kind === "sign") {
+        const w = Math.min(MAX_SIGN, Math.max(MIN_SIGN, item.w * f));
+        if (w === item.w) return;
+        this._checkpoint();
+        item.w = w;            // centred, so it grows around its middle
+        this.layout();
+        return;
+      }
       const size = Math.min(MAX_SIZE, Math.max(MIN_SIZE, item.size * f));
       if (size === item.size) return;
       if (this.editing !== item.id) this._checkpoint();
@@ -357,6 +411,10 @@ export class Editor {
     if (!el) { bar.hidden = true; return; }
     if (bar.parentElement !== p.overlay) p.overlay.append(bar);
     bar.querySelector('[data-act="edit"]').hidden = item.kind !== "text" || this.editing === item.id;
+    // "A" is about letters; a ✓ or a signature just gets smaller or bigger.
+    const isText = item.kind === "text";
+    bar.querySelector('[data-act="smaller"]').textContent = isText ? "A−" : "−";
+    bar.querySelector('[data-act="bigger"]').textContent = isText ? "A+" : "+";
     bar.hidden = false;
     // Above the item, kept inside the page; below it when there is no room.
     const pw = p.overlay.clientWidth;
