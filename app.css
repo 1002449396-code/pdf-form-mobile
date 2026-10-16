@@ -1,0 +1,118 @@
+/* Design tokens: the desktop editor's (PDF-Editor/design/README.md), so the two
+   look like one family. */
+:root {
+  --bg: #F6F5F2;
+  --surface: #FFFFFF;
+  --surface-2: #FBFAF8;
+  --doc-bg: #ECEAE5;
+  --border: #E5E2DB;
+  --text: #1D2026;
+  --text-2: #5A606A;
+  --accent: #2257C7;
+  --accent-dark: #163F94;
+  --accent-soft: #EAF0FB;
+  --ink: #1A3A8F;
+  --danger: #B4442C;
+  --bar-h: 56px;
+  --tool-h: 64px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; }
+/* `hidden` must win over the display rules below (.toolbar is flex). */
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 Rubik, "Segoe UI", Roboto, system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button { font: inherit; color: inherit; }
+svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---- top bar ---- */
+.topbar {
+  position: fixed; inset: 0 0 auto 0; height: var(--bar-h); z-index: 10;
+  display: flex; align-items: center; gap: 8px; padding: 0 8px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.topbar .title {
+  flex: 1; min-width: 0; font-weight: 500; font-size: 16px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.page-count { color: var(--text-2); font-size: 13px; padding-inline-end: 8px; white-space: nowrap; }
+.icon-btn {
+  width: 44px; height: 44px; border: 0; border-radius: 10px; background: transparent;
+  display: grid; place-items: center; color: var(--accent);
+}
+.icon-btn:active { background: var(--accent-soft); }
+
+/* ---- stage ---- */
+.stage {
+  position: fixed; inset: var(--bar-h) 0 0 0; overflow: auto;
+  -webkit-overflow-scrolling: touch; background: var(--doc-bg);
+  /* LTR so sideways scrolling of a zoomed page starts at the page's left edge;
+     the empty screen sets RTL back for itself. Pinch is handled in viewer.js. */
+  direction: ltr; touch-action: pan-x pan-y;
+}
+body.has-doc .stage { bottom: calc(var(--tool-h) + var(--safe-b)); }
+body:not(.has-doc) .stage { background: var(--bg); }
+
+.empty {
+  direction: rtl; min-height: 100%; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; padding: 24px 20px 48px;
+}
+.empty .brand {
+  width: 72px; height: 72px; border-radius: 18px; background: var(--accent);
+  color: #fff; display: grid; place-items: center; margin-bottom: 16px;
+}
+.empty .brand svg { width: 40px; height: 40px; }
+.empty h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; }
+.empty p { color: var(--text-2); margin: 0 0 20px; max-width: 320px; }
+.empty .hint { font-size: 13px; margin-top: 18px; }
+.primary {
+  min-height: 48px; padding: 0 28px; border: 0; border-radius: 10px;
+  background: var(--accent); color: #fff; font-weight: 500; font-size: 16px;
+}
+.primary:active { background: var(--accent-dark); }
+
+/* ---- pages ---- */
+/* Pages are laid out left-to-right in their own coordinates: a PDF page is a
+   picture, and RTL must not mirror where things sit on it. */
+.pages { direction: ltr; padding: 12px 0 24px; }
+.page {
+  position: relative; margin: 0 auto 12px; background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+}
+.page canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.page .overlay { position: absolute; inset: 0; }
+.page .page-no {
+  position: absolute; bottom: -1px; left: 50%; transform: translate(-50%, 100%);
+  font-size: 11px; color: var(--text-2); direction: rtl;
+}
+
+/* ---- bottom toolbar ---- */
+.toolbar {
+  position: fixed; inset: auto 0 0 0; z-index: 10;
+  height: calc(var(--tool-h) + var(--safe-b)); padding-bottom: var(--safe-b);
+  display: flex; justify-content: space-around; align-items: stretch;
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+.tool {
+  flex: 1; border: 0; background: transparent; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; color: var(--text-2);
+  font-size: 12px;
+}
+.tool:active { background: var(--accent-soft); color: var(--accent); }
+.tool:disabled { opacity: .35; }
+
+/* ---- toast ---- */
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--tool-h) + var(--safe-b) + 16px);
+  transform: translateX(-50%); z-index: 20; max-width: calc(100% - 32px);
+  background: var(--text); color: #fff; padding: 10px 16px; border-radius: 10px;
+  font-size: 14px; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.2);
+}

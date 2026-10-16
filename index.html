@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2257C7">
+<title>עורך טפסים</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn" id="btn-open" type="button" aria-label="פתיחת קובץ">
+    <svg viewBox="0 0 24 24"><path d="M4 20h16a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-8l-2-3H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1z"/></svg>
+  </button>
+  <div class="title" id="doc-title">עורך טפסים</div>
+  <div class="page-count" id="page-count" hidden></div>
+</header>
+
+<main id="stage" class="stage">
+  <section class="empty" id="empty">
+    <div class="brand">
+      <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 14h6"/><path d="M9 17h4"/></svg>
+    </div>
+    <h1>מילוי טפסים וחתימה</h1>
+    <p>הקובץ נשאר בטלפון שלך. שום דבר לא נשלח לאינטרנט.</p>
+    <button class="primary" id="btn-open-big" type="button">פתיחת קובץ PDF</button>
+    <p class="hint">אפשר גם לפתוח ישירות מוואטסאפ או מהמייל:<br>לוחצים על הקובץ ← <b>שיתוף</b> ← <b>עורך טפסים</b>.</p>
+  </section>
+  <div id="pages" class="pages" hidden></div>
+</main>
+
+<nav class="toolbar" id="toolbar" hidden>
+  <button class="tool" id="btn-zoom-out" type="button" aria-label="הקטנה">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="m20 20-3.5-3.5"/></svg>
+    <span>הקטנה</span>
+  </button>
+  <button class="tool" id="btn-fit" type="button" aria-label="התאמה לרוחב">
+    <svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></svg>
+    <span>לרוחב</span>
+  </button>
+  <button class="tool" id="btn-zoom-in" type="button" aria-label="הגדלה">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="m20 20-3.5-3.5"/></svg>
+    <span>הגדלה</span>
+  </button>
+</nav>
+
+<input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
