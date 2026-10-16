@@ -268,6 +268,41 @@ select.field { appearance: none; -webkit-appearance: none; }
 .pad-actions button.primary { border: 0; background: var(--accent); color: #fff; font-weight: 500; }
 .pad-actions button:disabled { opacity: .4; }
 
+.menu-sep { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
+.ready { padding: 4px 20px 8px; text-align: center; }
+.ready p { margin: 0 0 14px; color: var(--text-2); }
+.ready .primary { width: 100%; }
+
+/* ---- "preparing the file" ---- */
+.busy {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: rgba(29, 32, 38, .35);
+}
+.busy-box {
+  display: flex; align-items: center; gap: 12px; padding: 16px 22px;
+  background: var(--surface); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.2);
+}
+.spinner {
+  width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--accent-soft);
+  border-top-color: var(--accent); animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- printing (output.js) ----
+   The browser prints the page, so on paper ONLY the rendered sheets show. */
+#print-area { display: none; }
+@media print {
+  body > *:not(#print-area) { display: none !important; }
+  html, body { background: #fff; height: auto; }
+  #print-area { display: block; }
+  .print-sheet {
+    width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center;
+    break-after: page; page-break-after: always; overflow: hidden;
+  }
+  .print-sheet:last-child { break-after: auto; page-break-after: auto; }
+  .print-sheet img { max-width: 100%; max-height: 100%; }
+}
+
 /* ---- toast ---- */
 .toast {
   position: fixed; left: 50%; bottom: calc(var(--tool-h) + var(--safe-b) + 16px);

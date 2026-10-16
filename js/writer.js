@@ -43,21 +43,51 @@ export async function exportPdf(original, edits, fontBytes) {
   const doc = await PDFDocument.load(original, { updateMetadata: false });
   doc.registerFontkit(fontkit);
   const font = await doc.embedFont(fontBytes, { subset: true });
-  const pages = doc.getPages();
+  drawItems(doc, font, edits.items, edits.pages);
+  if (edits.fields.length) fillFields(doc, font, edits.fields);
+  return doc.save({ updateFieldAppearances: false });
+}
 
-  for (const item of edits.items) {
+/** pdf-lib cannot open an encrypted file - including the common "locked
+ *  against editing" kind with no password to open. Its error has no class of
+ *  its own that survives minification, so the message is the test. */
+export function isEncryptedError(err) {
+  return /is encrypted/i.test(err?.message || "");
+}
+
+/**
+ * The fallback for a file pdf-lib cannot open: every page as a picture (what
+ * the eye sees, rendered by pdf.js, which CAN read it), and everything she
+ * added drawn on top as real text and lines. The form's fields are no longer
+ * fields - the caller passes their values as ordinary items.
+ * @param {Array<{jpeg: Uint8Array, w: number, h: number}>} images  per page,
+ *        w/h in page units (the page as displayed)
+ */
+export async function exportImagePdf(images, items, fontBytes) {
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  const font = await doc.embedFont(fontBytes, { subset: true });
+  const pages = [];
+  for (const { jpeg, w, h } of images) {
+    const img = await doc.embedJpg(jpeg);
+    doc.addPage([w, h]).drawImage(img, { x: 0, y: 0, width: w, height: h });
+    pages.push({ view: [0, 0, w, h], rotate: 0 });
+  }
+  drawItems(doc, font, items, pages);
+  return doc.save();
+}
+
+function drawItems(doc, font, items, geometry) {
+  const pages = doc.getPages();
+  for (const item of items) {
     const page = pages[item.page];
-    const geo = edits.pages[item.page];
+    const geo = geometry[item.page];
     if (!page || !geo) continue;
     const m = viewTransform(geo.view, geo.rotate);
     if (item.kind === "text") drawTextItem(page, font, m, item);
     else if (item.kind === "check") drawCheckItem(page, m, item);
     else if (item.kind === "sign") drawSignItem(page, m, item);
   }
-
-  if (edits.fields.length) fillFields(doc, font, edits.fields);
-
-  return doc.save({ updateFieldAppearances: false });
 }
 
 // ------------------------------------------------------------------ items

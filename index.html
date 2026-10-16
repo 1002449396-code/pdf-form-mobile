@@ -17,6 +17,9 @@
     <div class="title" id="doc-title">עורך טפסים</div>
     <div class="page-count" id="page-count" hidden></div>
   </div>
+  <button class="icon-btn" id="btn-share" type="button" aria-label="שיתוף הקובץ" hidden>
+    <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4"/><path d="m15.4 6.5-6.8 4"/></svg>
+  </button>
   <button class="icon-btn" id="btn-menu" type="button" aria-label="תפריט">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
   </button>
@@ -60,6 +63,7 @@
 
 <input type="file" id="file-input" accept="application/pdf,.pdf" hidden>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="busy" id="busy" hidden><div class="busy-box"><div class="spinner"></div><span id="busy-text"></span></div></div>
 
 <script type="module" src="js/app.js"></script>
 </body>

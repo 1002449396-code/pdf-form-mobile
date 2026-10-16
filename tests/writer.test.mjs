@@ -291,3 +291,33 @@ test("the W-9: a real form's text field and a ✓ whose 'on' value is '1', not '
   assert.equal(v[text.fieldName], "ישראל ישראלי");
   assert.equal(v[box.fieldName], "1");
 });
+
+// ------------------------------------------------------------------ locked files
+
+test("a file locked against editing is recognised, not mistaken for a broken one", async () => {
+  const locked = new Uint8Array(readFileSync(ROOT + "tests/fixtures/locked-w9.pdf"));
+  const doc = await open(locked);   // pdf.js reads it: no password to open
+  const { isEncryptedError } = await import("../js/writer.js");
+  await assert.rejects(
+    exportPdf(locked, { items: [], fields: [], pages: await geometry(doc) }, FONT),
+    (err) => isEncryptedError(err));
+  assert.equal(isEncryptedError(new Error("Invalid PDF structure")), false);
+});
+
+test("the picture fallback keeps the page size and writes her text where it was", async () => {
+  const { exportImagePdf } = await import("../js/writer.js");
+  const jpeg = new Uint8Array(readFileSync(ROOT + "tests/fixtures/page.jpg"));
+  const out = await exportImagePdf([{ jpeg, w: 612, h: 792 }, { jpeg, w: 792, h: 612 }],
+    [{ page: 1, kind: "text", x: 500, y: 100, size: 14, text: "בדיקה" }], FONT);
+  const doc = await open(out);
+  assert.equal(doc.numPages, 2);
+  const p2 = await doc.getPage(2);
+  assert.deepEqual(p2.view, [0, 0, 792, 612]);
+  const ops = await p2.getOperatorList();
+  assert.ok(ops.fnArray.includes(pdfjs.OPS.paintImageXObject), "the page picture");
+  const [r] = await runs(doc, 2);
+  assert.equal(r.str, "בדיקה");
+  const vp = p2.getViewport({ scale: 1 });
+  const [x, y] = vp.convertToViewportPoint(r.transform[4], r.transform[5]);
+  assert.ok(Math.abs(x + r.width - 500) < 0.05 && Math.abs(y - (100 + EXPECTED_BASELINE * 14)) < 0.05);
+});

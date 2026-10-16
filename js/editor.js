@@ -91,6 +91,35 @@ export class Editor {
     };
   }
 
+  /** For a file saved as pictures (writer.exportImagePdf): every field's
+   *  CURRENT value as an ordinary item, since there are no fields any more.
+   *  The pictures are rendered without fields, so ALL values are needed,
+   *  changed or not. Placed the way the field shows it: one line centred
+   *  vertically, Hebrew against the right edge. */
+  fieldItems() {
+    const out = [];
+    for (const f of this.fields) {
+      const v = this.values[f.name] ?? "";
+      const { x, y, w, h } = f.rect;
+      if (f.kind === "check" || f.kind === "radio") {
+        if (v !== f.onValue) continue;     // each widget has its own "on" value
+        out.push({ page: f.page, kind: "check", x: x + w / 2, y: y + h / 2, size: Math.min(w, h) * 0.85 });
+        continue;
+      }
+      let text = f.kind === "choice" ? (f.options?.find((o) => o.value === v)?.label ?? v) : v;
+      if (!text.trim()) continue;
+      if (!f.multiline) text = text.replace(/\n/g, " ");
+      const size = f.fontSize || Math.max(6, Math.min(12, (h - 4) / 1.2));
+      const rtl = isRtl(text);
+      const lines = text.split("\n").length;
+      const top = f.multiline ? y + 2 : y + (h - size * LINE_HEIGHT * lines) / 2;
+      // A text item is anchored where its writing STARTS: Hebrew at the
+      // field's right edge, anything else at its left.
+      out.push({ page: f.page, kind: "text", size, text, x: rtl ? x + w - 2 : x + 2, y: top });
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------------- draft
   // What app.js keeps in the phone's storage, so a reload or a closed app
   // brings her work back. Includes the text she is typing RIGHT NOW: an app

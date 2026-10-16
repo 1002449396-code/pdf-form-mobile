@@ -8,6 +8,7 @@ import { Editor } from "./editor.js";
 import { pickSignature } from "./signature.js";
 import { sheet, menuRow, ICONS } from "./ui.js";
 import * as store from "./store.js";
+import { buildPdf, pdfFile, canShareFiles, shareFile, downloadFile, printPdf } from "./output.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -131,6 +132,7 @@ async function openBytes(bytes, name, { keepSession = false } = {}) {
     $("empty").hidden = true;
     $("pages").hidden = false;
     $("toolbar").hidden = false;
+    $("btn-share").hidden = false;
     // Shown without ".pdf": in a right-to-left line "טופס 101.pdf" comes out
     // as "pdf.101 טופס", and the extension tells her nothing anyway.
     $("doc-title").textContent = state.name.replace(/\.pdf$/i, "");
@@ -158,6 +160,7 @@ function showEmpty() {
   $("empty").hidden = false;
   $("pages").hidden = true;
   $("toolbar").hidden = true;
+  $("btn-share").hidden = true;
   $("page-count").hidden = true;
   $("doc-title").textContent = "עורך טפסים";
 }
@@ -210,6 +213,91 @@ async function openShared() {
   }
 }
 
+// ------------------------------------------------------------------ the finished file
+
+let busyTimer = 0;
+async function withBusy(text, fn) {
+  // Shown only if it takes a moment: a flash of "preparing" on a small
+  // file is noise.
+  busyTimer = setTimeout(() => { $("busy-text").textContent = text; $("busy").hidden = false; }, 250);
+  try { return await fn(); }
+  finally { clearTimeout(busyTimer); $("busy").hidden = true; }
+}
+
+// The same edits build the same file: share, then print, builds once.
+let built = { key: null, value: null };
+async function finishedFile() {
+  const key = state.name + "\n" + JSON.stringify(editor.draft());
+  if (built.key !== key) {
+    const value = await withBusy("מכין את הקובץ…", () => buildPdf(state.bytes, viewer, editor));
+    built = { key, value };
+    if (value.asImages) {
+      toast("הקובץ המקורי נעול לעריכה, ולכן העמודים נשמרו כתמונה איכותית. המילוי והחתימה נראים בדיוק כמו על המסך.", 7000);
+    }
+  }
+  return built.value;
+}
+
+function fileName() {
+  const n = state.name || "מסמך.pdf";
+  return /\.pdf$/i.test(n) ? n : n + ".pdf";
+}
+
+async function guard(fn, what) {
+  try { await fn(); }
+  catch (err) {
+    console.error(err);
+    toast(`${what} נכשל. נסה שוב, ואם זה חוזר — סגור ופתח את האפליקציה.`, 6000);
+  }
+}
+
+async function shareDoc() {
+  await guard(async () => {
+    const file = pdfFile((await finishedFile()).bytes, fileName());
+    if (!canShareFiles(file)) {
+      downloadFile(file);
+      toast("השיתוף לא זמין כאן, אז הקובץ נשמר בהורדות של הטלפון.", 5000);
+      return;
+    }
+    const r = await shareFile(file);
+    // Building a large file can outlast the tap that asked for it, and the
+    // browser only shares from a fresh one: offer a button that IS fresh.
+    if (r === "unavailable") offerShare(file);
+  }, "השיתוף");
+}
+
+function offerShare(file) {
+  const body = document.createElement("div");
+  body.className = "ready";
+  body.innerHTML = `<p>הקובץ מוכן.</p><button type="button" class="primary">שיתוף</button>`;
+  body.querySelector("button").addEventListener("click", async () => {
+    close();
+    await guard(async () => {
+      if ((await shareFile(file)) === "unavailable") {
+        downloadFile(file);
+        toast("השיתוף לא הצליח, אז הקובץ נשמר בהורדות של הטלפון.", 5000);
+      }
+    }, "השיתוף");
+  });
+  const close = sheet({ title: fileName().replace(/\.pdf$/i, ""), body });
+}
+
+async function saveDoc() {
+  await guard(async () => {
+    downloadFile(pdfFile((await finishedFile()).bytes, fileName()));
+    toast("הקובץ נשמר בהורדות של הטלפון", 4000);
+  }, "השמירה");
+}
+
+async function printDoc() {
+  await guard(async () => {
+    const { bytes } = await finishedFile();
+    await withBusy("מכין להדפסה…", () => printPdf(bytes));
+  }, "ההדפסה");
+}
+
+$("btn-share").addEventListener("click", shareDoc);
+
 // ------------------------------------------------------------------ menu
 
 const ZOOM_STEP = 1.25;
@@ -219,6 +307,17 @@ function openMenu() {
   body.className = "menu";
   const hasDoc = !!state.bytes;
   const run = (fn) => () => { close(); fn(); };
+
+  if (hasDoc) {
+    body.append(
+      menuRow(ICONS.share, "שיתוף (וואטסאפ, מייל…)", run(shareDoc)),
+      menuRow(ICONS.download, "שמירה בטלפון", run(saveDoc)),
+      menuRow(ICONS.print, "הדפסה", run(printDoc)),
+    );
+    const sep = document.createElement("hr");
+    sep.className = "menu-sep";
+    body.append(sep);
+  }
 
   body.append(menuRow(ICONS.open, hasDoc ? "פתיחת קובץ אחר" : "פתיחת קובץ", run(pickFile)));
 
@@ -270,13 +369,8 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   if (!(await openShared())) await restoreSession();
 })();
 
-// For checking the app in a desktop browser during development. Saving gets
-// its own buttons in the next stage; until then it is reachable only here.
+// For checking the app in a desktop browser during development.
 window.__openBytes = openBytes;
 window.__editor = editor;
-window.__exportPdf = async () => {
-  const { exportPdf } = await import("./writer.js");
-  const { FONT_URL } = await import("./layout.js");
-  const font = new Uint8Array(await (await fetch(FONT_URL)).arrayBuffer());
-  return exportPdf(state.bytes, editor.exportEdits(), font);
-};
+window.__exportPdf = async () => (await finishedFile()).bytes;
+window.__built = () => built.value;
