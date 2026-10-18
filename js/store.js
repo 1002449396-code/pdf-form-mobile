@@ -1,6 +1,7 @@
 // A tiny key-value store in the phone's own browser storage (IndexedDB).
 // Nothing here ever leaves the device. Two keys are used:
 //   "signatures" - her saved signatures (vector strokes)
+//   "details"    - her personal details ({label, value} list, details.js)
 //   "session"    - the open document and what she has filled in so far, so
 //                  that a reload, a crash or a closed app reopens her work
 //

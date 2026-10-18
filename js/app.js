@@ -6,6 +6,7 @@
 import { Viewer } from "./viewer.js";
 import { Editor } from "./editor.js";
 import { pickSignature } from "./signature.js";
+import { pickDetail, editDetails, loadDetails } from "./details.js";
 import { sheet, menuRow, ICONS } from "./ui.js";
 import * as store from "./store.js";
 import { buildPdf, pdfFile, canShareFiles, shareFile, downloadFile, printPdf } from "./output.js";
@@ -37,6 +38,7 @@ const TOOL_HINTS = {
   check: "הקש על כל מקום שצריך בו ✓. לסיום — הקש שוב על \"וי\"",
   date: "הקש על המקום בדף שבו לשים את התאריך",
   sign: "הקש על המקום בדף שבו לשים את החתימה",
+  detail: "הקש על המקום בדף שבו לכתוב את הפרט",
 };
 
 const editor = new Editor(viewer, {
@@ -54,6 +56,7 @@ const editor = new Editor(viewer, {
 for (const b of document.querySelectorAll("[data-tool]")) {
   b.addEventListener("click", () => {
     if (b.dataset.tool === "sign") chooseSignature();
+    else if (b.dataset.tool === "detail") chooseDetail();
     else editor.setTool(b.dataset.tool);
   });
 }
@@ -65,6 +68,18 @@ async function chooseSignature() {
   const sig = await pickSignature();
   if (sig && state.bytes) editor.setTool("sign", sig);
   else if (sig) toast("החתימה נשמרה. פתח קובץ כדי להניח אותה.");
+}
+
+/** The details button. If she was just typing in one of the form's own
+ *  fields, the detail goes straight into it; otherwise the next tap on the
+ *  page places it. Pressed again while armed, it disarms. */
+async function chooseDetail() {
+  const field = editor.recentField();
+  if (editor.tool === "detail") { editor.setTool(null); return; }
+  const text = await pickDetail();
+  if (!text || !state.bytes) return;
+  if (field) { editor.fillField(field, text); toast("נוסף לשדה"); }
+  else editor.setTool("detail", text);
 }
 
 // ------------------------------------------------------------------ her work survives
@@ -346,11 +361,17 @@ function openMenu() {
     chooseSignature();
   })));
 
+  body.append(menuRow(ICONS.person, "הפרטים שלי", run(async () => {
+    if (editor.tool === "detail") editor.setTool(null);
+    const r = await editDetails(await loadDetails());
+    if (r) toast(state.bytes ? "הפרטים נשמרו. כדי להוסיף לטופס — \"פרטים\" בסרגל למטה." : "הפרטים נשמרו.", 4000);
+  })));
+
   if (hasDoc) body.append(menuRow(ICONS.close, "סגירת המסמך", run(closeDocument), { danger: true }));
 
   const note = document.createElement("p");
   note.className = "menu-note";
-  note.textContent = "הקבצים והחתימות נשמרים רק בטלפון הזה, ולא נשלחים לשום מקום.";
+  note.textContent = "הקבצים, החתימות והפרטים נשמרים רק בטלפון הזה, ולא נשלחים לשום מקום.";
   body.append(note);
 
   const close = sheet({ title: hasDoc ? state.name.replace(/\.pdf$/i, "") : "עורך טפסים", body });

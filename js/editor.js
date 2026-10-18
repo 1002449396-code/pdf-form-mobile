@@ -28,7 +28,7 @@ export class Editor {
   constructor(viewer, ui) {
     this.viewer = viewer;
     this.ui = ui;              // {toast, onToolChange(tool), onHistoryChange(canUndo)}
-    this.tool = null;          // "text" | "check" | "date" | null
+    this.tool = null;          // "text" | "check" | "date" | "sign" | "detail" | null
     this.items = [];
     this.values = {};          // field name -> value
     this.original = {};        // field name -> value as the file had it
@@ -64,6 +64,7 @@ export class Editor {
     this.history = [];
     this.selected = null;
     this.editing = null;
+    this._lastField = null;
     this.setTool(null);
     this.ui.onHistoryChange(false);
   }
@@ -149,11 +150,13 @@ export class Editor {
 
   // ---------------------------------------------------------------- tools
 
-  /** `sig` goes with the "sign" tool: the signature the next tap places. */
-  setTool(tool, sig = null) {
-    this.tool = this.tool === tool && !sig ? null : tool;
-    this.pendingSig = this.tool === "sign" ? sig : null;
-    if (this.tool === "sign" && !this.pendingSig) this.tool = null;
+  /** `payload` goes with "sign" (the signature the next tap places) and with
+   *  "detail" (the text of one of her personal details). */
+  setTool(tool, payload = null) {
+    this.tool = this.tool === tool && !payload ? null : tool;
+    this.pendingSig = this.tool === "sign" ? payload : null;
+    this.pendingText = this.tool === "detail" ? payload : null;
+    if ((this.tool === "sign" || this.tool === "detail") && !payload) this.tool = null;
     if (this.tool) this._select(null);
     document.body.classList.toggle("tool-armed", !!this.tool);
     this.ui.onToolChange(this.tool);
@@ -176,13 +179,32 @@ export class Editor {
       this._select(item.id);
       return;
     }
-    const text = tool === "date" ? todayText() : "";
+    const text = tool === "date" ? todayText() : tool === "detail" ? this.pendingText : "";
     const size = TEXT_SIZE;
     const item = { id: nextId++, page: index, kind: "text", x, y: y - size * LINE_HEIGHT / 2, size, text };
     this.items.push(item);
     this.setTool(null);
-    if (tool === "date") { this._select(item.id); this.layout(); }
+    if (tool === "date" || tool === "detail") { this._select(item.id); this.layout(); }
     else { this.layout(); this._edit(item.id, true); }
+  }
+
+  /** The text field she was typing in a moment ago (the button she just
+   *  tapped took its focus), or null. Asked once per tap: the next press of
+   *  the button is about the page again, not about that field. */
+  recentField() {
+    const r = this._lastField;
+    this._lastField = null;
+    if (!r || Date.now() - r.at > 1500 || r.f.readOnly || !r.f.el?.isConnected) return null;
+    return r.f;
+  }
+
+  /** Put text into a form field, as one undo step. Respects its length limit. */
+  fillField(f, text) {
+    if (!f.multiline) text = text.replace(/\n/g, " ");
+    if (f.maxLen) text = text.slice(0, f.maxLen);
+    this._checkpoint();
+    this.values[f.name] = text;
+    this._syncFieldElements();
   }
 
   // ---------------------------------------------------------------- undo
@@ -599,7 +621,14 @@ export class Editor {
         el.spellcheck = false;
         el.autocomplete = "off";
         if (f.maxLen) el.maxLength = f.maxLen;
-        el.addEventListener("focus", () => { el._snap = this._snapshot(); this._select(null); });
+        el.addEventListener("focus", () => {
+          el._snap = this._snapshot();
+          this._select(null);
+          this._lastField = { f, at: Infinity };
+        });
+        // Tapping a toolbar button takes the focus first: remember the field a
+        // moment longer, so "פרטים" can fill the field she was in.
+        el.addEventListener("blur", () => { if (this._lastField?.f === f) this._lastField.at = Date.now(); });
         el.addEventListener("input", () => {
           this.values[f.name] = el.value;
           // Same field on another widget (a name repeated on page 2) follows.

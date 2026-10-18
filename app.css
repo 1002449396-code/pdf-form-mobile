@@ -290,6 +290,35 @@ select.field { appearance: none; -webkit-appearance: none; }
 .pad-actions button.primary { border: 0; background: var(--accent); color: #fff; font-weight: 500; }
 .pad-actions button:disabled { opacity: .4; }
 
+/* ---- personal details (details.js) ---- */
+.det-list { padding: 0 0 4px; }
+.det-use {
+  width: 100%; min-height: 56px; display: flex; flex-direction: column; justify-content: center;
+  align-items: flex-start; gap: 1px; padding: 6px 20px; border: 0; border-bottom: 1px solid var(--border);
+  background: transparent; text-align: start;
+}
+.det-use small { font-size: 12px; color: var(--text-2); }
+.det-use bdi { font-size: 17px; color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.det-use:active { background: var(--accent-soft); }
+.det-form { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.det-scroll { flex: 1; overflow: auto; padding: 0 16px; overscroll-behavior: contain; touch-action: pan-y; }
+.det-row { display: grid; grid-template-columns: 7.5em 1fr 36px; gap: 6px; align-items: center; margin-bottom: 8px; }
+.det-row input {
+  min-width: 0; height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 0 10px;
+  font: inherit; font-size: 16px; background: var(--surface); color: var(--text);
+}
+.det-row .det-label { font-size: 14px; color: var(--text-2); background: var(--surface-2); }
+.det-row input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.det-del {
+  width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2);
+  display: grid; place-items: center;
+}
+.det-del svg { width: 18px; height: 18px; }
+.det-add {
+  display: flex; align-items: center; gap: 8px; border: 1px dashed var(--border); border-radius: 10px;
+  background: transparent; color: var(--accent); width: 100%; height: 44px; justify-content: center;
+}
+
 .menu-sep { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
 .ready { padding: 4px 20px 8px; text-align: center; }
 .ready p { margin: 0 0 14px; color: var(--text-2); }
